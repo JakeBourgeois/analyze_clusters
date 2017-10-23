@@ -5,7 +5,8 @@ import re
 import csv
 import os
 from collections import defaultdict
-import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 import statistics
 
 
@@ -483,11 +484,13 @@ def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
 
     # load SOR file positions and generate histogram plot as int defaultdict
     pos_freqs = defaultdict(int)
+    all_pos = list()
     with open(sor_file, 'r') as f:
 
         reader = csv.DictReader(f)
         for row in reader:
             pos_freqs[int(row['POS'])] += 1
+            all_pos.append(int(row['POS']))
 
     # dump a copy of the freqs onto disk for analysis
     with open(freq_file, 'w') as f:
@@ -531,8 +534,20 @@ def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
         writer.writerow(("Cluster Position 1", "Cluster Position 2"))
         for pair in cluster_pos_pairs:
             writer.writerow((pair[0], pair[1]))
-    return
 
+    # try writing a histogram!
+    xmin = cluster_pos_pairs[0][0] - 1000
+    xmax = cluster_pos_pairs[0][1] + 1000
+    ymin = 0
+    ymax = 50
+
+    x = np.array(all_pos)
+
+    n, bins, patches = plt.hist(x, bins=100, range=(xmin,xmax))
+    plt.axis([xmin, xmax, ymin, ymax])
+    plt.show()
+
+    return
 
 
 
