@@ -81,7 +81,7 @@ for acc_num in accessions_list:
     my_bug.load_genes_from_file(gene_file)
 
     # Scan for clusters
-    match_clusters(my_bug, cluster_file, results_file, translations_output, ntol, max_genes, tlen_max)
+    match_clusters_to_genes(my_bug, cluster_file, results_file, translations_output, ntol, max_genes, tlen_max)
 
 # Create the parameters file
 params_file = os.path.join(results_path, params_filename)

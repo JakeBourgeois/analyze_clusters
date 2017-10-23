@@ -4,6 +4,9 @@
 import re
 import csv
 import os
+from collections import defaultdict
+import matplotlib
+import statistics
 
 
 # class Sequence is a sequence of nucleotides
@@ -350,7 +353,7 @@ def parse_gbflat_genes(entrez_file, gene_file):
 
 # function match_clusters takes cluster positions and looks for a given maximum number of genes in the
 # proximity of the cluster by relying on gene data in class Bug
-def match_clusters(bug, cluster_file, results_file, trans_file, ntol=2000, max_genes=5, tlen_max=5000):
+def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=2000, max_genes=5, tlen_max=5000):
 
     print("Matching cluster data to genes for accession number", bug.accession_num, "...")
 
@@ -472,5 +475,64 @@ def match_clusters(bug, cluster_file, results_file, trans_file, ntol=2000, max_g
 
     print("Linkage complete!\n")
     return
+
+
+# function detect_clusters reads a data file, generates a frequency histogram of SOR reads, and detects pairs of
+# cluster reads
+def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
+
+    # load SOR file positions and generate histogram plot as int defaultdict
+    pos_freqs = defaultdict(int)
+    with open(sor_file, 'r') as f:
+
+        reader = csv.DictReader(f)
+        for row in reader:
+            pos_freqs[int(row['POS'])] += 1
+
+    # dump a copy of the freqs onto disk for analysis
+    with open(freq_file, 'w') as f:
+
+        writer = csv.writer(f)
+        writer.writerow(("Position", "Frequency"))
+        for key in pos_freqs:
+            writer.writerow((key, pos_freqs[key]))
+
+    # define frequency tolerance. Maybe the median value will work?
+    all_freqs = list()
+    for key in pos_freqs:
+        all_freqs.append(pos_freqs[key])
+    ftol = statistics.median(all_freqs)
+    del all_freqs
+
+    # iterate through the histogram and detect keys that have a frequency that exceeds the tolerance
+    potential_clusters = list()
+    for key in pos_freqs:
+        if pos_freqs[key] > ftol:
+            potential_clusters.append((key, pos_freqs[key]))
+    potential_clusters = sorted(potential_clusters)
+
+    # look through the filtered positions and see if neighboring clusters within ctol exist
+    cluster_pos_pairs = list()
+    for i in range(0, len(potential_clusters)-1):
+
+        # load cluster
+        cluster_pos = potential_clusters[i][0]
+        next_cluster_pos = potential_clusters[i+1][0]
+
+        # look within some nucleotides at the next guy to see if he's a neighbor
+        if (next_cluster_pos - cluster_pos) < ctol:
+
+            # potential cluster pal detected!
+            cluster_pos_pairs.append((cluster_pos, next_cluster_pos))
+
+    # write these cluster pals to file for analysis
+    with open(cluster_file, 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(("Cluster Position 1", "Cluster Position 2"))
+        for pair in cluster_pos_pairs:
+            writer.writerow((pair[0], pair[1]))
+    return
+
+
 
 
