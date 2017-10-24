@@ -480,7 +480,7 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
 
 # function detect_clusters reads a data file, generates a frequency histogram of SOR reads, and detects pairs of
 # cluster reads
-def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
+def detect_clusters(sor_file, freq_file, cluster_file, fig_path, ctol=1000):
 
     # load SOR file positions and generate histogram plot as int defaultdict
     pos_freqs = defaultdict(int)
@@ -514,13 +514,23 @@ def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
             potential_clusters.append((key, pos_freqs[key]))
     potential_clusters = sorted(potential_clusters)
 
+    # further screen the potential clusters by taking the median of this data
+    final_cluster_candidates = list()
+    potential_clusters_freqs = list()
+    for clusters in potential_clusters:
+        potential_clusters_freqs.append(clusters[1])
+    median_tol = statistics.median(potential_clusters_freqs)
+    for clusters in potential_clusters:
+        if clusters[1] > median_tol:
+            final_cluster_candidates.append(clusters)
+
     # look through the filtered positions and see if neighboring clusters within ctol exist
     cluster_pos_pairs = list()
-    for i in range(0, len(potential_clusters)-1):
+    for i in range(0, len(final_cluster_candidates)-1):
 
         # load cluster
-        cluster_pos = potential_clusters[i][0]
-        next_cluster_pos = potential_clusters[i+1][0]
+        cluster_pos = final_cluster_candidates[i][0]
+        next_cluster_pos = final_cluster_candidates[i+1][0]
 
         # look within some nucleotides at the next guy to see if he's a neighbor
         if (next_cluster_pos - cluster_pos) < ctol:
@@ -536,16 +546,49 @@ def detect_clusters(sor_file, freq_file, cluster_file, ctol=1000):
             writer.writerow((pair[0], pair[1]))
 
     # try writing a histogram!
-    xmin = cluster_pos_pairs[0][0] - 1000
-    xmax = cluster_pos_pairs[0][1] + 1000
-    ymin = 0
-    ymax = 50
+    i = 0
+    for cluster in cluster_pos_pairs:
 
-    x = np.array(all_pos)
+        i += 1
 
-    n, bins, patches = plt.hist(x, bins=100, range=(xmin,xmax))
-    plt.axis([xmin, xmax, ymin, ymax])
-    plt.show()
+        # set plot parameters
+        c_start = cluster[0]
+        c_end = cluster[1]
+
+        if pos_freqs[c_start] > pos_freqs[c_end]:
+            ymax = pos_freqs[c_start] + 5
+        else:
+            ymax = pos_freqs[c_end] + 5
+
+
+        xmin = c_start - 1000
+        xmax = c_end + 1000
+        ymin = 0
+        title = "5' clipped end frequencies between", c_start, "and", c_end
+        plot_text_start = "Cluster Start:", c_start, "at frequency:", pos_freqs[c_start]
+        plot_text_end = "Cluster End:", c_end, "at frequency:", pos_freqs[c_end]
+
+        # make an array of all the histogram data to make binning work. pyplot hist automatically generates
+        # the frequency data corresponding to the input array
+
+        x = np.array(all_pos)
+
+        plt.hist(x, bins=200, range=(xmin,xmax))
+        plt.axis([xmin, xmax, ymin, ymax])
+        plt.xlabel('Genomic Position')
+        plt.ylabel('Frequency of Read')
+
+        plt.annotate(plot_text_start, xy=(0.025, 0.95), xycoords='figure fraction',horizontalalignment='left',
+                     verticalalignment='top', fontsize=8)
+        plt.annotate(plot_text_end, xy=(0.025, 0.91), xycoords='figure fraction',horizontalalignment='left',
+                     verticalalignment='top', fontsize=8)
+
+        plt.tick_params(axis='x', labelsize=8)
+
+        figfile = os.path.join(fig_path, str(c_start) + '_' + str(i) + '.pdf')
+
+        plt.savefig(figfile)
+        plt.show()
 
     return
 
