@@ -8,6 +8,8 @@ from collections import defaultdict
 import matplotlib.pyplot as plt
 import numpy as np
 import statistics
+from scipy.stats import norm
+import seaborn as sns
 
 
 # class Sequence is a sequence of nucleotides
@@ -71,7 +73,7 @@ class Bug:
                 try:
                     this_gene = Gene(row['locus_tag'], row['gene'], row['is_complement'])
                     this_gene.seq_start, this_gene.seq_end = int(row['loc_start']), int(row['loc_end'])
-                    this_gene.translation.sequence = row['translation']
+                    this_gene.translation.sequence = Sequence(sequence=row['translation'], code='protein')
                     this_gene.function = row['product']
 
                     # add the gene to the gene list for the bug
@@ -480,7 +482,7 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
 
 # function detect_clusters reads a data file, generates a frequency histogram of SOR reads, and detects pairs of
 # cluster reads
-def detect_clusters(sor_file, freq_file, cluster_file, fig_path, ctol=1000):
+def detect_clusters(sor_file, freq_file, cluster_file, fig_path, ctol=2000):
 
     # load SOR file positions and generate histogram plot as int defaultdict
     pos_freqs = defaultdict(int)
@@ -591,6 +593,299 @@ def detect_clusters(sor_file, freq_file, cluster_file, fig_path, ctol=1000):
         plt.show()
 
     return
+
+
+# function detect_inversion_clusters attempts to detect cluster positions based off the 5' clipped end read spike in
+# the SOR file. This function uses scipy gaussian stats to calculate a density plot and, based on some density
+# threshold, finds clusters. Then, it finds the two maximum reads and calls those the inversion areas
+def detect_inversion_clusters(sor_file, ptol=99, nbin_size=20000):
+
+    # load SOR file positions and generate frequency data as int defaultdict
+    pos_freq_dict = defaultdict(int)
+    all_positions = list()
+    with open(sor_file, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+
+            # ignore TLEN values that are less than zero. Does this need to be within a read length?
+            if int(row['TLEN']) != 0:
+                pos_freq_dict[int(row['POS'])] += 1
+                all_positions.append(int(row['POS']))
+
+    # let x be the position and y be the frequency, and z be all the positions
+    x, y = list(), list()
+    for key in pos_freq_dict:
+
+        x.append(float(key))
+    x = np.array(x)
+    z = np.array(all_positions)
+
+    # compute a density histogram of the data. Bin size is equal to nucleotides determined by nbin_size
+    seq_len = x.max() - x.min()
+    sbin = int(seq_len / nbin_size)
+
+    h_densities, den_bin_edges = np.histogram(z, bins=sbin, density=True)
+    # h_counts, count_bin_edges = np.histogram(z, bins=sbin)
+
+    # from here, determine some cutoff density value that identifies our clusters based of percentile ptol
+    perc = np.percentile(h_densities, ptol)
+    # cperc = np.percentile(h_counts, ptol)
+    bin_length = den_bin_edges[1]-den_bin_edges[0]
+
+    # show an overview plot that shows the processing of the data density histogram
+    # Overview plot of the original histogram showing the percentile cutoff
+    plt.plot(h_densities)
+    plt.axhline(perc, color='red')
+    plt.xlabel("Bin Number")
+    plt.ylabel("Bin Density")
+    plt.show()
+
+    # add the left-sided bin edges to a list; these represent the left side of a potential cluster
+    cluster_pos = list()
+    for i in range(0, sbin):
+        if h_densities[i] > perc:
+            cluster_pos.append(int(den_bin_edges[i]))
+
+    # now make an array over this region and draw our histogram over this cluster range and try to kde it
+    for lpos in cluster_pos:
+
+        # set the viewing stage to the length of the cluster
+        xmin, xmax = lpos, lpos + bin_length
+
+        # create an array that contains the histogram data of the positions here, and find the maximum two values
+        cx = list()
+        fmax1, fmax1_pos, fmax2, fmax2_pos = 0, 0, 0, 0
+        for key in pos_freq_dict:
+            if (key > xmin) and (key < xmax):
+                for i in range(0, pos_freq_dict[key]):
+                    cx.append(key)
+        cx = np.array(cx)
+
+        # now lets compute another density histogram over some number of bins and find the two highest read densities
+        # in our cluster array
+
+        c_densities, c_bin_edges = np.histogram(cx, bins=50, density=True)
+        dmax1, dmax2, dmaxpos1, dmaxpos2 = 0.0, 0.0, 0.0, 0.0
+        for i in range(0, len(c_densities)):
+            den = c_densities[i]
+            if den > dmax1:
+                dmax1 = den
+                dmaxpos1 = c_bin_edges[i]
+            elif den > dmax2:
+                dmax2 = den
+                dmaxpos2 = c_bin_edges[i]
+
+        # Ideally, the number of bins shouldn't hold much more than one value. What to do?
+        sns.distplot(cx, bins=50)
+        plt.axvline(dmaxpos1, color='red')
+        plt.axvline(dmaxpos2, color='green')
+        plt.show()
+
+
+def detect_inversion_clusters_interactive(sor_file, nbin_size=20000):
+
+    # class HLineBuilder allows us to define a density cutoff in the initial screen.
+    class HLineBuilder:
+        def __init__(self, line, x_bin):
+            self.line = line
+            self.xs = (0, x_bin)
+            self.ys = line.get_ydata()
+            self.cid = line.figure.canvas.mpl_connect('button_press_event', self)
+
+        def __call__(self, event):
+            if event.inaxes != self.line.axes: return
+            y1, y2 = event.ydata, event.ydata
+            self.line.set_data(self.xs, (y1, y2))
+            self.y_final = y1
+            self.line.figure.canvas.draw()
+
+    # class VLineBuilder allows us to corner in on a refined cluster
+    class VLineBuilder:
+        def __init__(self, line, y_bin):
+            self.line = line
+            self.xs = line.get_xdata()
+            self.ys = (0, y_bin)
+            self.cid = line.figure.canvas.mpl_connect('button_press_event', self)
+
+        def __call__(self, event):
+            if event.inaxes != self.line.axes: return
+            x1, x2 = event.xdata, event.xdata
+            self.line.set_data((x1, x2), self.ys)
+            self.x_final = x1
+            self.line.figure.canvas.draw()
+
+
+    # load SOR file positions and generate frequency data as int defaultdict
+
+    pos_freq_dict = defaultdict(int)
+    all_positions = list()
+    with open(sor_file, 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+
+            # ignore TLEN values that are less than zero. Does this need to be within a read length?
+            if int(row['TLEN']) != 0:
+                pos_freq_dict[int(row['POS'])] += 1
+                all_positions.append(int(row['POS']))
+
+    # let x be the position and y be the frequency, and z be all the positions
+    x, y = list(), list()
+    for key in pos_freq_dict:
+        x.append(float(key))
+    x = np.array(x)
+    z = np.array(all_positions)
+
+    # compute a density histogram of the data. Bin size is equal to nucleotides determined by nbin_size
+    seq_len = x.max() - x.min()
+    sbin = int(seq_len / nbin_size)
+
+    h_densities, den_bin_edges = np.histogram(z, bins=sbin, density=True)
+    # h_counts, count_bin_edges = np.histogram(z, bins=sbin)
+
+    # from here, determine some cutoff density value that identifies our clusters based of percentile ptol
+    # perc = np.percentile(h_densities, ptol)
+    # cperc = np.percentile(h_counts, ptol)
+    bin_length = den_bin_edges[1] - den_bin_edges[0]
+
+    # show an overview plot that shows the processing of the data density histogram
+    # Overview plot of the original histogram showing the percentile cutoff
+
+    fig, ax1 = plt.subplots()
+
+    ax1.plot(h_densities)
+
+    line, = ax1.plot([0], [0])  # empty line
+    r = HLineBuilder(line, sbin)
+
+    plt.show()
+    perc = r.y_final
+
+    # add the left-sided bin edges to a list; these represent the left side of a potential cluster
+    cluster_pos = list()
+    for i in range(0, sbin):
+        if h_densities[i] > perc:
+            cluster_pos.append(int(den_bin_edges[i]))
+
+    # now make an array over this region and draw our histogram over this cluster range and try to kde it
+    for lpos in cluster_pos:
+
+        # set the viewing stage to the length of the cluster
+        xmin, xmax = lpos, lpos + bin_length
+
+        # create an array that contains the histogram data of the positions here, and find the maximum two values
+        cx = list()
+        for key in pos_freq_dict:
+            if (key > xmin) and (key < xmax):
+                for i in range(0, pos_freq_dict[key]-1):
+                    cx.append(key)
+        cx = np.array(cx)
+
+        # now lets compute another density histogram over some number of bins and find the two highest read densities
+        # in our cluster array
+
+        c_densities, c_bin_edges = np.histogram(cx, bins=500, density=True)
+        dmax1, dmax2, dmaxpos1, dmaxpos2 = 0.0, 0.0, 0.0, 0.0
+        for i in range(0, len(c_densities)):
+            den = c_densities[i]
+            if den > dmax1:
+                dmax1 = den
+            elif den > dmax2:
+                dmax2 = den
+
+        # Ideally, the number of bins shouldn't hold much more than one value. What to do?
+        sns.distplot(cx, kde=False, bins=500, norm_hist=True)
+        # sns.kdeplot(cx, shade=True, bw=0.1)
+
+        # Okay, so from here, we want to guess at inversion positions.
+        # To do this, lets first find densities along this cluster that exceed some background density
+
+        bkrd_perc = np.percentile(c_densities, 99)
+        bin_pos, rest_bins = list(), list()
+        for i in range(0, len(c_densities)):
+            if c_densities[i] > bkrd_perc:
+                bin_pos.append(c_bin_edges[i])
+                rest_bins.append(c_bin_edges[i])
+        plt.axhline(bkrd_perc)
+        plt.show()
+
+
+        # if we only got one or zero bins, then it's a shit cluster.
+        if len(bin_pos) < 2:
+            print("Not enough bins found!")
+        else:
+
+            # Then, let's see if these density positions lie within 5000nt (or some value) of each other
+
+            bin_pairs = list()
+            for i in range(0, len(bin_pos)-1):
+                this_bin = bin_pos[i]
+                rest_bins.remove(this_bin)
+                for bin in rest_bins:
+                    bin_pairs.append((this_bin, bin))
+
+            for pair in bin_pairs:
+                if abs(pair[1] - pair[0]) > 5000:
+                    bin_pairs.remove(pair)
+
+            # Now, find the bin pair that maximizes the read density
+            bin_pair_density_max = 0.0
+            for bin1, bin2 in bin_pairs:
+                bin1d = c_densities[np.where(c_bin_edges == bin1)[0][0]]
+                bin2d = c_densities[np.where(c_bin_edges == bin2)[0][0]]
+
+                bin_pair_density = bin1d + bin2d
+                if bin_pair_density > bin_pair_density_max:
+                    bin_pair_density_max = bin_pair_density
+                    bin_max_pair = (bin1, bin2)
+
+            print("Bin max pair:", bin_max_pair)
+
+            # Finally, within each bin, find the original positional value that has the highest read count
+            # for most clusters, this works fine. However, for some, the bin doesn't contain the positional
+            # data, which is absurd. So I'll relax it a bit.
+            inv_pos = list()
+            p_bin_length = c_bin_edges[1] - c_bin_edges[0]
+            for box in bin_max_pair:
+                inv_pos_candidates = list()
+                l_box = box - 0.5 * p_bin_length
+                r_box = box + 1.5 * p_bin_length
+
+                for pos in pos_freq_dict:
+                    check_pos = float(pos)
+                    if check_pos > l_box:
+                        if check_pos < r_box:
+                            inv_pos_candidates.append(pos)
+                inv_pos.append(sorted(inv_pos_candidates)[len(inv_pos_candidates)-1])
+
+            print("Best guess at inversion positions:", inv_pos)
+            plt.show()
+
+            # If we do, lets draw a final image showing the vertical lines outlining the genomic positions of the
+            # inversion site, a gaussian curve, and a gene annotating table :)
+
+            # build our inv array
+            inv_x = list()
+            for pos in pos_freq_dict:
+                if pos > (inv_pos[0] - 5000):
+                    if pos < (inv_pos[1] + 5000):
+                        for i in range(0, pos_freq_dict[pos] - 1):
+                            inv_x.append(pos)
+            inv_x = np.array(inv_x)
+
+            # generate a histogram plot
+            sns.distplot(inv_x, kde=False, norm_hist=True, bins=50)
+            sns.kdeplot(inv_x, bw=0.5)
+            plt.axvline(inv_pos[0])
+            plt.axvline(inv_pos[1])
+            plt.show()
+
+
+
+
+
+
+
+
 
 
 
