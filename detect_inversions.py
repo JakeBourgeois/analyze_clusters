@@ -1,6 +1,6 @@
 """
 detect_inversions.py is meant to contain all the useful classes, methods, and functions necessary for
-detection of inversions within an organism genome
+detection of inversions within an organism SOR file
 
 Author: Jake Bourgeois
 Email: jacob.bourgeois@tufts.edu
@@ -15,17 +15,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 import csv
 import sys
-import os
 
 
 # class SOR holds the master SOR data
 class SOR:
 
-    def __init__(self, sor_file, binsize=20000, ignore=[]):
+    def __init__(self, acc, sor_file, binsize=20000, ignore=[]):
 
+        self.accession_num = acc                # accession number
         self.pos_freq_dict = defaultdict(int)   # contains pos:freq data
         self.pos_array = np.array([])           # contains all unique positions
         self.ignored_positions = ignore         # when loading the SOR file, ignore these positions
+        self.data_sum = 0                       # sum of read counts in data
+
         self.load_sor(sor_file)                 # loads sor data into these attributes
 
         self.pos_min = self.pos_array.min()     # minimum position
@@ -34,7 +36,17 @@ class SOR:
         self.bin_size = binsize                 # how many nucleotides each bin should span
         self.final_bin_size = 0                 # what we ended up getting
 
+        # useful output parameters
         self.clusters = list()                  # list of clusters filtered out of the initial screen
+        self.signals = list()                   # list of all screened clusters
+        self.true_clusters = list()             # signals that turn out to be a true pair of clusters
+        self.spikes = list()                    # signals that turn out to be solitary spikes or otherwise
+        self.clust_dist = list()                # list of distances between best nt
+        self.clust_sum = list()                 # list of scores sums of best nt
+        self.clust_proportion_perc = list()     # list of percent proportions of reads to cluster
+        self.total_clust_prop_perc = list()     # list of percent proportions of reads to data total
+        self.cluster_map_int = list()           # list of 1 and -1 reporting true or spikes; for output index mapping
+        self.final_cbin_sizes = list()          # list of final cluster bin sizes
         self.read_cutoff = 0                    # ultimate density value used in thresholding
 
     # loads sor data from file into attributes
@@ -44,10 +56,11 @@ class SOR:
             reader = csv.DictReader(f)
             for row in reader:
                 try:
-                    # ignore TLEN values that are less than zero. Does this need to be within a read length?
+                    # ignore TLEN values that are less than zero.
                     if int(row['TLEN']) != 0:
                         if int(row['POS']) not in self.ignored_positions:
                             self.pos_freq_dict[int(row['POS'])] += 1
+                            self.data_sum += 1
 
                 except csv.Error as e:
                     print("Error occurred! Please ensure headers on file include TLEN and POS.")
@@ -64,8 +77,9 @@ class SOR:
                 sub_dict[element] = self.pos_freq_dict[element]
         return sub_dict
 
-        # creates an interactive graph of histogram data useful for setting thresholds of cluster detection
+    # creates an interactive graph of histogram data useful for setting thresholds of cluster detection
     def make_interactive_graphical_threshold(self, save_path='n'):
+
         # class HLineBuilder allows us to define a density cutoff in the initial screen.
         class HLineBuilder:
             def __init__(self, line, x_bin):
@@ -112,17 +126,18 @@ class SOR:
 
         # Our cutoff is equal to the y value of the last line drawn
         self.read_cutoff = r.y_final
+        plt.close()
 
         # If we have a save path, recreate the graph and save it
         if save_path != 'n':
             fig, ax1 = plt.subplots()
             ax1.plot(h_densities)  # plot density histogram along axis.
-            plt.title("Click to set read density cutoff")
-            plt.xlabel("Bin")
+            plt.title(self.accession_num + " SOR Density Histogram; Bins=" + str(nbins))
+            plt.xlabel("Bin Number")
             plt.ylabel("Bin read density")
             plt.axhline(self.read_cutoff, color='r')
             plt.savefig(save_path)
-            plt.gcf().clear()
+            plt.close()
 
         # add the left-sided bin edges to a list if they pass; these represent the left side of a potential cluster
         h_bin_left_pos_list = list()
@@ -150,6 +165,7 @@ class Cluster:
 
         self.pos_min = self.pos_array.min()                 # minimum position
         self.pos_max = self.pos_array.max()                 # maximum position
+        self.data_sum = 0                                   # sum of read counts in cluster
 
         # minimum and maximum frequency values
         self.freq_min = np.array(list(pos_freq_dict.values())).min()
@@ -172,6 +188,8 @@ class Cluster:
         self.filtered_cluster_bin_pairs = list()            # lift of completely filtered bin pairs
         self.best_bin_pair = [(-1, -1), (-1, -1)]           # bin spans that best fulfill the conditions
         self.best_nt_pair = [(-1, 0), (-1, 0)]              # best scoring nucleotide pair with counts
+        self.best_nt_pair_dist = 0                          # number of nt apart the pair is
+        self.best_nt_pair_sum = 0                           # sum of scores of the best nt pair
 
         self.graph_nt_stream = 1000                         # amount of nt upstream and downstream when drawing
 
@@ -255,6 +273,9 @@ class Cluster:
 
         self.final_cbin_size = bin_size
         self.bins = bins
+
+        for count in counts:
+            self.data_sum += count
 
         return counts, edges, cbin_dict
 
@@ -371,7 +392,7 @@ class Cluster:
                 self.signal = (pos1, score1)
         return
 
-    # uses matplotlib to draw and save an illustration of the histogram data of the suggested inversion cluster
+    # uses matplotlib and sns to draw and save an illustration of the histogram data of the suggested inversion cluster
     def draw_inversion_site(self, save_path, show_fig='n'):
 
         # generate histogram data over this pos_array
@@ -415,10 +436,16 @@ class Cluster:
             plt.show()
 
         # clear the figure
-        plt.gcf().clear()
+        plt.close()
 
         return
 
 
+# append_to_csv takes a data tuple and appends to some csv file.
+def append_to_csv(data, output):
 
+    with open(output, 'a') as o:
+        writer = csv.writer(o)
+        writer.writerow(data)
+    return
 
