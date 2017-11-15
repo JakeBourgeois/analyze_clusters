@@ -1,9 +1,10 @@
 #! usr/bin/python
 
-# analyze_clusters is a python file written for Oggy's inversion clustering project. As input, it takes in a list
+""" analyze_clusters is a python file written for Oggy's inversion clustering project. As input, it takes in a list
 # of NCBI GenBank accession numbers and corresponding clustering data from Oggy's bash and R script analysis. It
 # then downloads a flat gb file from entrez, parses that file to extract CDS information, and then lines up each
 # cluster position with the nearby genes.
+"""
 
 import time
 
@@ -48,8 +49,8 @@ if os.path.exists(translations_output):
     os.remove(translations_output)
 
 # Define running variables
-ntol = 2000  # number of nucleotides to look at around given cluster position
-max_genes = 3  # maximum number of genes to assign to a cluster
+ntol = 5000  # number of nucleotides to look at around given cluster position
+max_genes = 6  # maximum number of genes to assign to a cluster
 tlen_max = 5000  # ignore clusters that have a tlen greater than this number
 accessions_list = list()  # holds our input accession numbers
 my_bugs = list()  # holds our bugs
