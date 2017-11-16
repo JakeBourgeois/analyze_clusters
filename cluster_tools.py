@@ -355,7 +355,7 @@ def parse_gbflat_genes(entrez_file, gene_file):
 
 # function match_clusters takes cluster positions and looks for a given maximum number of genes in the
 # proximity of the cluster by relying on gene data in class Bug
-def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=2000, max_genes=5, tlen_max=5000):
+def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, graph_path, ntol=2000, max_genes=5):
 
     print("Matching cluster data to genes for accession number", bug.accession_num, "...")
 
@@ -371,12 +371,10 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
         reader = csv.DictReader(f)
 
         for row in reader:
-            pos = int(row['genomicPos'])
-            tlen = int(row['tlen'])
+            pos_start = int(row['Signal Start'])
+            pos_end = int(row['Signal End'])
 
-            # if the tlen exceeds tlen_max, ignore row
-            if tlen <= tlen_max:
-                cluster_positions.append(pos)
+            cluster_positions.append((pos_start, pos_end))
 
     # I prefer the clusters to be sorted :)
     cluster_positions = sorted(cluster_positions)
@@ -399,9 +397,13 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
             loc_start = -1
             loc_end = 1
 
-            cluster_min = cluster_pos - ntol
-            cluster_max = cluster_pos + ntol
-            cluster = (1783893, 1784155)
+            pos_start = cluster_pos[0]
+            pos_end = cluster_pos[1]
+            cluster_pos = (pos_end + pos_start) / 2
+
+            cluster_min = pos_start - ntol
+            cluster_max = pos_end + ntol
+            cluster = (pos_start, pos_end)
 
             i = 0  # index position
 
@@ -465,7 +467,8 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
                     hit_scores.pop(r)
 
             # write a gene diagram for this set!
-            draw_cluster_gene_diagram(bug, cluster, loci, bug.accession_num + '_' + str(cluster_min) + '.pdf')
+            graph_file = os.path.join(graph_path, bug.accession_num + '_' + str(int(cluster_pos)) + '.pdf')
+            draw_cluster_gene_diagram(bug, cluster, loci, graph_file)
 
             # finally, write the row!
             writer.writerow((cluster_pos, str(len(loci)), stringify(loci), stringify(products)))
@@ -484,7 +487,7 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, ntol=20
 
 
 # use BioPython tools and the final result file to draw a gene diagram showing our inversion sites
-def draw_cluster_gene_diagram(bug, cluster, loci, figname):
+def draw_cluster_gene_diagram(bug, cluster, loci, fig_path):
 
     # compile a dict such that {locus_tag}:{start, end, strand, product}
     data_dict = dict()
@@ -502,7 +505,7 @@ def draw_cluster_gene_diagram(bug, cluster, loci, figname):
     # create an empty genome diagram
     gdd = GenomeDiagram.Diagram(bug.accession_num)
     gdt_features = gdd.new_track(1, greytrack=True, scale_smalltick_interval=s_tick_int, scale_smalltick_labels=True,
-                                 scale_smallticks=0.1, scale_fontangle=0, scale_fontsize=4)
+                                 scale_smallticks=0.1, scale_fontangle=0, scale_fontsize=4, name=bug.accession_num)
     gds_features = gdt_features.new_set()
 
     # for each loci, annotate
@@ -537,5 +540,5 @@ def draw_cluster_gene_diagram(bug, cluster, loci, figname):
     # draw the graph
     gdd.draw(format='linear', pagesize=(16 * cm, 10 * cm), fragments=1,
              start=d_start-500, end=d_end+500)
-    gdd.write(figname, "pdf")
+    gdd.write(fig_path, "pdf")
 

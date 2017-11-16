@@ -49,10 +49,6 @@ for acc_num in accession_list:
     if not os.path.exists(graph_path):
         os.makedirs(graph_path)
 
-    analysis_file = os.path.join(acc_results_path, acc_num+' cluster analysis.csv')
-    # if we have an analysis file here, delete it
-    if os.path.exists(analysis_file):
-        os.remove(analysis_file)
 
     # load SOR class, possible to make it so it loops through SOR files
     SOR_bug = SOR(acc_num, sor_file, binsize=nbin_size)
@@ -116,6 +112,15 @@ for acc_num in accession_list:
     final_ibin = SOR_bug.final_bin_size                 # the ultimate nt size of the bins
     final_cbins = SOR_bug.final_cbin_sizes              # final nt sizes of cluster bins list
 
+    analysis_file = os.path.join(acc_results_path, acc_num + ' cluster analysis.csv')
+    cluster_file = os.path.join(acc_results_path, acc_num + '.csv')
+
+    # if we have an analysis file here, delete it
+    if os.path.exists(analysis_file):
+        os.remove(analysis_file)
+    if os.path.exists(cluster_file):
+        os.remove(cluster_file)
+
     # let's write the cluster stats and data to a results file
 
     append_to_csv(['Accession Number:', acc_num], analysis_file)
@@ -130,10 +135,13 @@ for acc_num in accession_list:
     header = ['Signal Start', 'Signal End', 'True Pair?', 'Inversion Length', 'Combined Read Count',
               'Percent Read to Cluster', 'Percent Read to All SORs']
     append_to_csv(header, analysis_file)
+    append_to_csv(header, cluster_file)
     for i in range(0, num_signals):
         data = [all_signals[i][0], all_signals[i][1], is_inv_true[i], c_dist[i], c_reads[i], local_props[i],
                 global_props[i]]
         append_to_csv(data, analysis_file)
+        if is_inv_true[i] == 'Y':
+            append_to_csv(data, cluster_file)
     append_to_csv([''], analysis_file)
 
     # now write run parameters
@@ -142,7 +150,8 @@ for acc_num in accession_list:
               'nt cluster bin target', 'nt cluster bins achieved', 'Minimum cluster bin distance',
               'Maximum cluster bin distance', 'Cluster bin count percentile cutoff', 'Minimum inversion size',
               'Maximum inversion size']
-    data = [read_cutoff, nbin_size, final_ibin, 40, final_cbins, 100, 1000, 98, 100, 5000]
+    data = [read_cutoff, nbin_size, final_ibin, c.bin_size, final_cbins, c.c_sep_min, c.c_sep_max,
+            c.count_percentile_threshold, c.n_sep_min, c.n_sep_max]
     for i in range(0, len(labels)):
         d = (labels[i], data[i])
         append_to_csv(d, analysis_file)

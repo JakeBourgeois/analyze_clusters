@@ -17,10 +17,9 @@ except ImportError:
 
 
 # Define our folder and file names holding the data
-entrez_folder_name = 'Entrez_Data'
-gene_folder_name = 'Gene_Data'
-cluster_folder_name = 'Cluster_Data'
-results_folder_name = 'Results'
+entrez_folder_name = 'Entrez Data'
+gene_folder_name = 'Gene Data'
+results_folder_name = 'Cluster Data'
 input_filename = 'accession_list.txt'
 translations_filename = '__cluster_gene_translations_fasta.txt'
 params_filename = '__result_parameters.txt'
@@ -28,20 +27,25 @@ params_filename = '__result_parameters.txt'
 
 # Define our folder paths
 desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
-entrez_path = os.path.join(desktop_path, entrez_folder_name)
-gene_path = os.path.join(desktop_path, gene_folder_name)
-cluster_path = os.path.join(desktop_path, cluster_folder_name)
-results_path = os.path.join(desktop_path, results_folder_name)
+working_path = os.path.join(desktop_path, "Cluster Detection")
+results_path = os.path.join(working_path, results_folder_name)
+
+
+entrez_path = os.path.join(working_path, entrez_folder_name)
+gene_path = os.path.join(working_path, gene_folder_name)
+
+
+
 
 # If our folder paths do not exist, make them.
-paths = [desktop_path, entrez_path, gene_path, cluster_path, results_path]
+paths = [desktop_path, entrez_path, gene_path, results_path]
 for path in paths:
     if not os.path.exists(path):
         os.makedirs(path)
 del paths
 
 # Define our input files
-accessions_input = os.path.join(desktop_path, input_filename)
+accessions_input = os.path.join(working_path, input_filename)
 translations_output = os.path.join(results_path, translations_filename)
 
 # If the translation file exists, delete it
@@ -49,9 +53,8 @@ if os.path.exists(translations_output):
     os.remove(translations_output)
 
 # Define running variables
-ntol = 5000  # number of nucleotides to look at around given cluster position
+ntol = 20000  # number of nucleotides to look at around given cluster position
 max_genes = 6  # maximum number of genes to assign to a cluster
-tlen_max = 5000  # ignore clusters that have a tlen greater than this number
 accessions_list = list()  # holds our input accession numbers
 my_bugs = list()  # holds our bugs
 
@@ -66,10 +69,12 @@ for acc_num in accessions_list:
     print("Analyzing clusters for accession number", acc_num)
 
     # Define the file names
+    acc_path = os.path.join(results_path, acc_num)
     entrez_file = os.path.join(entrez_path, acc_num+'.txt')
     gene_file = os.path.join(gene_path, acc_num+'.csv')
-    cluster_file = os.path.join(cluster_path, acc_num+'.txt')
-    results_file = os.path.join(results_path, acc_num+'.tsv')
+    cluster_file = os.path.join(acc_path, acc_num+'.csv')
+    results_file = os.path.join(acc_path, acc_num+'.tsv')
+    graph_path = os.path.join(acc_path, 'Gene Diagrams')
 
     # Get Entrez Data, if necessary
     get_entrez_data(acc_num, entrez_file)
@@ -82,15 +87,13 @@ for acc_num in accessions_list:
     my_bug.load_genes_from_file(gene_file)
 
     # Scan for clusters
-    match_clusters_to_genes(my_bug, cluster_file, results_file, translations_output, ntol, max_genes, tlen_max)
+    match_clusters_to_genes(my_bug, cluster_file, results_file, translations_output, graph_path, ntol, max_genes)
 
 # Create the parameters file
 params_file = os.path.join(results_path, params_filename)
 with open(params_file, 'w') as f:
     f.write("Accession list: " + accessions_input + '\n')
-    f.write("Clustering directory: " + cluster_path + '\n')
     f.write("Nucleotide tolerance: " + str(ntol) + '\n')
-    f.write("Maximum tlen: " + str(tlen_max) + '\n')
     f.write("Maximum nearby genes: " + str(max_genes) + '\n')
 
 x = time.clock()
