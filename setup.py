@@ -1,4 +1,4 @@
-"""Setuptools module for InversionClusterTools
+"""Setuptools module for InversionClusterTools. Template from PyPi example. I don't know what I'm doing!
 """
 
 # Always prefer setuptools over distutils
