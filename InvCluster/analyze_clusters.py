@@ -78,6 +78,9 @@ def align_clusters_to_genes(max_genes):
         results_file = os.path.join(acc_path, acc_num+'.tsv')
         graph_path = os.path.join(acc_path, 'Gene Diagrams')
 
+        if not os.path.exists(graph_path):
+            os.makedirs(graph_path)
+
         # Get Entrez Data, if necessary
         get_entrez_data(acc_num, entrez_file)
 
