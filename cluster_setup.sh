@@ -20,4 +20,4 @@ pip3 install matplotlib
 pip3 install numpy
 
 echo "Setup completed! Now, once the SOR data is in the SOR folder, type:"
-echo" $ python3 detect_inversion_clusters.py"
+echo "$ python3 detect_inversion_clusters.py"
