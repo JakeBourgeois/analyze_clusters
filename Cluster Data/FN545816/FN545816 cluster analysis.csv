@@ -1,0 +1,23 @@
+Accession Number:,FN545816
+Number of signals detected,5
+Number of inversion pairs detected,1
+Number of signal peaks detected,4
+""
+Signal Start,Signal End,True Pair?,Inversion Length,Combined Read Count,Percent Read to Cluster,Percent Read to All SORs
+32280,32835,Y,555,334,60.51,0.9012
+2040403,2040403,N,0,425,87.27,1.147
+2059200,2059200,N,0,710,96.73,1.916
+2125354,2125354,N,0,538,92.12,1.452
+3832893,3832893,N,0,555,92.04,1.497
+""
+RUN PARAMETERS:
+Initial Density Cutoff,2.3558627474e-06
+nt bin target for initial screen,5000
+nt bin achieved,5001.3902148
+nt cluster bin target,40
+nt cluster bins achieved,"[40.25, 40.129310344811529, 40.0, 40.114754098467529, 40.345454545225948]"
+Minimum cluster bin distance,100
+Maximum cluster bin distance,1000
+Cluster bin count percentile cutoff,98
+Minimum inversion size,50
+Maximum inversion size,1000

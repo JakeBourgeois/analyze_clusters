@@ -1,0 +1,43 @@
+~ Configuration File for Jake's inversion cluster detection and gene analysis program ~
+
+# Cluster Detection parameters
+
+nbin_size=5000
+cbin_cutoff=98
+cbin_size=40
+cluster_min_sep=100
+cluster_max_sep=1000
+ntpair_min_sep=50
+ntpair_max_sep=1000
+
+# Cluster gene analysis parameters
+
+max_genes=6
+
+! End of vars, email jacob.bourgeois@tufts.edu for any questions !
+
+"nbin_size" refers to how many nucleotides each bin is in the initial SOR read histogram
+used to filter out potential clusters. Too large, and signals may become mixed together.
+Too small, and signals may be split. This value should be changed according to how large
+of a inversion pair you are looking for.
+
+"cbin_cutoff" refers to what percentile of read count an individual bin within a cluster
+must have to be considered a site for potential inversion nucleotides. I'd keep this at 98
+
+"cbin_size" refers to how many nucleotides is in each bin within a potential cluster. 40
+has been working for me so far, but you can adjust is larger or smaller based on how messy
+and how close together individual peaks are. For example, if I had a super messy peak at
+position 10000, and another at 10002, it may be nice to have a cbin_size of at least two
+so these are combined together, and not mistaken for an inversion pair of 2 nt.
+
+"cluster_min_sep" and "cluster_max_sep" refer to how many nucleotides should be expected
+between the two highest-scoring bins within a potential cluster - so, at least cluster_min_sep
+and no more than cluster_max_sep. This again helps the program know what size of inversion
+clusters you are looking for.
+
+"ntpair_min_sep" and "ntpair_max_sep" are like the above, but look at the distances of the
+final exact nt positions. Sometimes, when two clusters are identified, the best positions
+are at the respective beginning and end of a cluster. So, this makes sure you have the size
+of inversion pair you want at the end.
+
+"max_genes" refers to how may genes you want on the final gene diagrams.
