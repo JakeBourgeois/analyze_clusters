@@ -404,6 +404,8 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, graph_p
             cluster_max = pos_end + ntol
             cluster = (pos_start, pos_end)
 
+            total_genes = len(bug.genes)
+
             i = 0  # index position
 
             loci = list()
@@ -415,11 +417,12 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, graph_p
             hit_scores = list()
 
             # while the beginning of the gene location does not exceed the cluster max position
-            while loc_start <= cluster_max:
+            while (loc_start <= cluster_max) and (i < total_genes):
 
                 loc_start = bug.genes[i].seq_start
                 loc_end = bug.genes[i].seq_end
                 loc_avg = loc_start + ((loc_end - loc_start) / 2)
+
 
                 # does the end of the gene peek into the cluster range?
                 if (loc_end >= cluster_min) and (loc_start <= cluster_min):
@@ -474,12 +477,12 @@ def match_clusters_to_genes(bug, cluster_file, results_file, trans_file, graph_p
 
             # Oggy needs a file with all the translations, so write that shit up.
             with open(trans_file, 'a') as h:
-                i = 0
+                j = 0
                 for t in translations:
-                    header = '>' + bug.accession_num + '_' + loci[i] + '\n'
+                    header = '>' + bug.accession_num + '_' + loci[j] + '\n'
                     h.write(header)
                     h.write(t + '\n')
-                    i += 1
+                    j += 1
 
     print("Linkage complete!\n")
     return
