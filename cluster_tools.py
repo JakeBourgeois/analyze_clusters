@@ -117,7 +117,7 @@ def get_entrez_data(acc_num, entrez_file, db='nucleotide', rettype='gb', retmode
     print("Now downloading Entrez Data for accession number", acc_num, "...")
 
     # Generate the URL
-    email = 'jacob.bourgeois@tufts.edu'
+    email = 'your.email@goes.here'
     base = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/'
 
     url = base + "efetch.fcgi?db=" + db + \
