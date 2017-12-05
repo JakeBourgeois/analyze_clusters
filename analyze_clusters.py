@@ -7,11 +7,7 @@
 """
 
 # I keep my classes and junk in cluster_tools.py
-try:
-    from cluster_tools import *
-except ImportError:
-    print("Clustering tools file not found. Please ensure cluster_tools.py is in the proper directory.")
-    quit()
+from cluster_tools import *
 
 
 def align_clusters_to_genes(max_genes):
