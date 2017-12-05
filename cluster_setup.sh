@@ -18,6 +18,7 @@ pip3 install seaborn
 pip3 install BioPython
 pip3 install matplotlib
 pip3 install numpy
+pip3 install reportlab
 
 echo "Setup completed! Now, once the SOR data is in the SOR folder, type:"
 echo "$ python3 detect_inversion_clusters.py"
